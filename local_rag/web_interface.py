@@ -84,7 +84,7 @@ class LocalRAGChatInterface:
         
         return cleaned_response
     
-    def clear_chat(self) -> Tuple[List[Tuple[str, str]], str, str]:
+    def clear_chat(self) -> Tuple[List[Tuple[str, str]], None, str]:
         """Clear the chat history and reset everything."""
         self.uploaded_files = []
         self.all_documents = []
@@ -139,11 +139,84 @@ class LocalRAGChatInterface:
             return f"❌ Error uploading documents: {str(e)}"
     
     def get_upload_status(self) -> str:
-        """Get current upload status."""
         if self.uploaded_files:
             return f"📄 Currently loaded: {', '.join(self.uploaded_files)}"
         else:
             return "📄 No documents uploaded yet"
+    
+    def create_file_management_components(self):
+        """Create dynamic components for file management"""
+        components = []
+        for i, file in enumerate(self.uploaded_files):
+            with gr.Row():
+                gr.Markdown(f"📄 `{file}`", elem_classes=["file-item"])
+                remove_btn = gr.Button(
+                    "❌",
+                    variant="stop",
+                    size="sm",
+                    scale=0,
+                    min_width=40
+                )
+                # Store the filename in the button's value for identification
+                remove_btn.click(
+                    fn=lambda f=file: self.remove_file_simple(f),
+                    outputs=[],
+                    queue=True
+                )
+                components.append((file, remove_btn))
+        return components
+    
+    def remove_file_simple(self, filename: str):
+        """Simple file removal without complex state management"""
+        if filename in self.uploaded_files:
+            file_index = self.uploaded_files.index(filename)
+            self.uploaded_files.remove(filename)
+            
+            if file_index < len(self.all_documents):
+                del self.all_documents[file_index]
+            
+            # Rebuild index
+            if self.all_documents:
+                self.index = VectorStoreIndex.from_documents(self.all_documents)
+                self.query_engine = self.index.as_query_engine()
+            
+            logger.info(f"Removed file: {filename}")
+        return f"Removed {filename}"
+    
+    def remove_file(self, file_to_remove: str) -> Tuple[str, str]:
+        if file_to_remove not in self.uploaded_files:
+            return "File not found", self.get_file_list()
+        
+        try:
+            # Find index of file to remove
+            file_index = self.uploaded_files.index(file_to_remove)
+            
+            # Remove from tracking lists
+            self.uploaded_files.remove(file_to_remove)
+            
+            # Remove corresponding documents (assuming one doc per file)
+            if file_index < len(self.all_documents):
+                del self.all_documents[file_index]
+            
+            # Rebuild index with remaining documents
+            if self.all_documents:
+                self.index = VectorStoreIndex.from_documents(self.all_documents)
+                self.query_engine = self.index.as_query_engine()
+                status = f"✅ Removed {file_to_remove}. {len(self.uploaded_files)} files remaining"
+            else:
+                # Create empty index if no documents left
+                from llama_index.core import Document
+                empty_doc = Document(text="Upload documents to get started.")
+                self.index = VectorStoreIndex.from_documents([empty_doc])
+                self.query_engine = self.index.as_query_engine()
+                status = "✅ All files removed"
+            
+            logger.info(f"Removed file: {file_to_remove}")
+            return status, self.get_file_list_html()
+            
+        except Exception as e:
+            logger.error(f"Error removing file: {e}")
+            return f"❌ Error removing file: {str(e)}", self.get_file_list_html()
     
     def create_interface(self) -> gr.Blocks:
         """
@@ -157,7 +230,7 @@ class LocalRAGChatInterface:
             theme=gr.themes.Soft(),
             css="""
             .gradio-container {
-                max-width: 900px !important;
+                max-width: 1400px !important;
                 margin: auto !important;
             }
             """
@@ -165,63 +238,132 @@ class LocalRAGChatInterface:
             
             gr.Markdown("# 🤖 LocalRAG Chat Interface")
             
-            # Document Upload Section
-            file_upload = gr.File(
-                label="📄 Add More Documents (Auto-indexing)",
-                file_count="multiple",
-                file_types=[".txt", ".pdf", ".docx", ".md", ".csv"],
-                height=120
-            )
-            
-            upload_status = gr.Textbox(
-                label="Status",
-                interactive=False,
-                show_label=False,
-                placeholder="Upload documents to get started..."
-            )
-            
-            # Chat Section
-            chatbot = gr.Chatbot(
-                label="Chat History",
-                height=500,
-                show_label=True,
-                container=True,
-                bubble_full_width=False
-            )
-            
             with gr.Row():
-                msg_input = gr.Textbox(
-                    label="Your Message",
-                    placeholder="Ask a question about your documents...",
-                    lines=2,
-                    max_lines=5,
-                    show_label=False,
-                    container=False,
-                    scale=4
-                )
+                # Left Column - Chat Section
+                with gr.Column(scale=3):
+                    chatbot = gr.Chatbot(
+                        label="💬 Chat",
+                        height=600,
+                        show_label=True,
+                        container=True,
+                        bubble_full_width=False
+                    )
+                    
+                    with gr.Row():
+                        msg_input = gr.Textbox(
+                            label="Your Message",
+                            placeholder="Ask a question about your documents...",
+                            lines=2,
+                            max_lines=5,
+                            show_label=False,
+                            container=False,
+                            scale=4
+                        )
+                        
+                        send_btn = gr.Button(
+                            "Send",
+                            variant="primary",
+                            scale=1,
+                            min_width=80
+                        )
+                    
+                    clear_btn = gr.Button(
+                        "🗑️ Clear All & Reset",
+                        variant="secondary",
+                        size="sm"
+                    )
                 
-                send_btn = gr.Button(
-                    "Send",
-                    variant="primary",
-                    scale=1,
-                    min_width=80
-                )
-            
-            with gr.Row():
-                clear_btn = gr.Button(
-                    "🗑️ Clear All & Reset",
-                    variant="secondary"
-                )
+                # Right Column - Document Management
+                with gr.Column(scale=2):
+                    gr.Markdown("### 📄 Document Management")
+                    
+                    file_upload = gr.File(
+                        label="Upload Documents",
+                        file_count="multiple",
+                        file_types=[".txt", ".pdf", ".docx", ".md", ".csv"],
+                        height=120
+                    )
+                    
+                    upload_status = gr.Textbox(
+                        label="Status",
+                        interactive=False,
+                        show_label=False,
+                        placeholder="Upload documents to get started...",
+                        lines=2
+                    )
+                    
+                    gr.Markdown("#### 📋 Uploaded Files")
+                    
+                    # Simple file list with individual remove buttons
+                    file_rows = []
+                    for i in range(10):  # Pre-create up to 10 file slots
+                        with gr.Row(visible=False) as file_row:
+                            file_name = gr.Markdown("", elem_classes=["file-item"])
+                            remove_btn = gr.Button(
+                                "❌",
+                                variant="stop",
+                                size="sm",
+                                scale=0,
+                                min_width=40,
+                                visible=False
+                            )
+                        file_rows.append((file_row, file_name, remove_btn))
             
             # Event handlers
             def submit_message(message, history):
                 return self.chat_fn(message, history)
             
+            def update_file_display():
+                """Update the file display rows"""
+                updates = []
+                for i in range(10):
+                    if i < len(self.uploaded_files):
+                        # Show the file
+                        file_name = self.uploaded_files[i]
+                        updates.extend([
+                            gr.Row(visible=True),  # file_row
+                            gr.Markdown(f"📄 `{file_name}`"),  # file_name
+                            gr.Button("❌", visible=True)  # remove_btn
+                        ])
+                    else:
+                        # Hide unused rows
+                        updates.extend([
+                            gr.Row(visible=False),  # file_row
+                            gr.Markdown(""),  # file_name
+                            gr.Button("❌", visible=False)  # remove_btn
+                        ])
+                return updates
+            
+            def upload_and_update(files):
+                status = self.upload_documents(files)
+                file_updates = update_file_display()
+                return [status] + file_updates + [None]  # Include cleared upload area
+            
+            def remove_file_by_index(index):
+                if 0 <= index < len(self.uploaded_files):
+                    file_name = self.uploaded_files[index]
+                    self.remove_file_simple(file_name)
+                    status = f"✅ Removed {file_name}"
+                else:
+                    status = "File not found"
+                file_updates = update_file_display()
+                return [status] + file_updates
+            
+            def clear_all():
+                chat, upload_area, status = self.clear_chat()
+                file_updates = update_file_display()
+                return [chat, upload_area, status] + file_updates
+            
+            # Create output lists for file display updates
+            file_outputs = []
+            for file_row, file_name, remove_btn in file_rows:
+                file_outputs.extend([file_row, file_name, remove_btn])
+            
             # Auto-upload when files are selected
             file_upload.upload(
-                fn=self.upload_documents,
+                fn=upload_and_update,
                 inputs=[file_upload],
-                outputs=[upload_status],
+                outputs=[upload_status] + file_outputs + [file_upload],
                 queue=True
             )
             
@@ -241,17 +383,25 @@ class LocalRAGChatInterface:
                 queue=True
             )
             
+            # Bind remove buttons
+            for i, (file_row, file_name, remove_btn) in enumerate(file_rows):
+                remove_btn.click(
+                    fn=lambda idx=i: remove_file_by_index(idx),
+                    outputs=[upload_status] + file_outputs,
+                    queue=True
+                )
+            
             # Clear button click - now clears everything
             clear_btn.click(
-                fn=self.clear_chat,
-                outputs=[chatbot, file_upload, upload_status],
+                fn=clear_all,
+                outputs=[chatbot, file_upload, upload_status] + file_outputs,
                 queue=False
             )
             
-            # Initialize upload status
+            # Initialize interface
             interface.load(
-                fn=self.get_upload_status,
-                outputs=[upload_status],
+                fn=lambda: [self.get_upload_status()] + update_file_display(),
+                outputs=[upload_status] + file_outputs,
                 queue=False
             )
         
