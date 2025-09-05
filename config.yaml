@@ -7,7 +7,7 @@ models:
   llm:
     model_name: "qwen/qwen3-4b-thinking-2507"
     context_window: 4096
-    num_output: 1024
+    num_output: 2048
   
   embedding:
     model_name: "text-embedding-embeddinggemma-300m-qat"
