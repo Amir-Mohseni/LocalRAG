@@ -156,7 +156,16 @@ class LocalRAGChatInterface:
             
             if new_documents:
                 self.all_documents.extend(new_documents)
-                self.index = VectorStoreIndex.from_documents(self.all_documents)
+                
+                # Use incremental indexing to avoid re-embedding existing documents
+                if self.index is None:
+                    # Create new index if none exists
+                    self.index = VectorStoreIndex.from_documents(new_documents)
+                else:
+                    # Add new documents to existing index (incremental)
+                    for doc in new_documents:
+                        self.index.insert(doc)
+                
                 self.query_engine = self.index.as_query_engine()
                 self.uploaded_files.extend(new_file_names)
                 
@@ -184,7 +193,16 @@ class LocalRAGChatInterface:
             
             if docs:
                 self.all_documents.extend(docs)
-                self.index = VectorStoreIndex.from_documents(self.all_documents)
+                
+                # Use incremental indexing to avoid re-embedding existing documents
+                if self.index is None:
+                    # Create new index if none exists
+                    self.index = VectorStoreIndex.from_documents(docs)
+                else:
+                    # Add new documents to existing index (incremental)
+                    for doc in docs:
+                        self.index.insert(doc)
+                
                 self.query_engine = self.index.as_query_engine()
                 
                 # Update system prompt with fresh date/time

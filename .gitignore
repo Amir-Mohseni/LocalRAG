@@ -1,4 +1,6 @@
 venv/
 data/**
+docs/*
+.DS_Store
 __pycache__/
 **/__pycache__/
