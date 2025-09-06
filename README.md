@@ -53,10 +53,21 @@ Download and install [LM Studio](https://lmstudio.ai).
 ### 4. Run LocalRAG
 
 ```bash
-python main.py --web
+python main.py
 ```
 
-Access the web interface at: `http://127.0.0.1:7860`
+The web interface will automatically start at: `http://127.0.0.1:7860`
+
+### Command Line Options
+
+You can customize the web interface with these options:
+
+```bash
+python main.py --port 8080        # Run on a different port
+python main.py --host 0.0.0.0     # Allow external connections
+python main.py --share            # Create a public sharing link
+python main.py --debug            # Enable debug mode
+```
 
 **Initial Model Setup:**
 ![App Model Setup](docs/app_model_setup.png)
