@@ -1,19 +1,14 @@
-# LocalRAG Configuration
 api:
-  base_url: "http://127.0.0.1:1234/v1"
-  api_key: "not-needed"
-
-models:
-  llm:
-    model_name: "qwen/qwen3-4b-thinking-2507"
-    context_window: 4096
-    num_output: 2048
-  
-  embedding:
-    model_name: "text-embedding-embeddinggemma-300m-qat"
-
-data:
-  directory: "./data"
-
+  api_key: not-needed
+  base_url: http://127.0.0.1:1234/v1
 logging:
-  level: "INFO"
+  level: INFO
+models:
+  embedding:
+    model_name: text-embedding-embeddinggemma-300m-qat
+  llm:
+    context_window: 4096
+    model_name: qwen/qwen3-4b-thinking-2507
+    num_output: 2048
+setup:
+  completed: true

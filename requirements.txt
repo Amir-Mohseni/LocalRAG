@@ -4,3 +4,4 @@ llama-index-embeddings-openai
 openai
 pyyaml
 gradio
+lmstudio

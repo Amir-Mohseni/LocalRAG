@@ -105,15 +105,26 @@ def main():
     try:
         print("🚀 Initializing LocalRAG system...")
         
-        # Create the RAG system using configuration
-        index = create_local_rag_system(args.config)
-        
-        print("✅ LocalRAG system initialized successfully!")
-        
-        # Choose interface based on arguments
+        # For web interface, handle model loading issues gracefully
         if args.web:
+            try:
+                # Try to create the RAG system with force check
+                index = create_local_rag_system(args.config, force_check=True)
+                if index:
+                    print("✅ LocalRAG system initialized successfully!")
+                else:
+                    print("⚠️ Models not configured - starting web interface for setup")
+                    index = None
+            except RuntimeError as e:
+                # If models aren't loaded, start with no index and let web interface handle it
+                print("⚠️ Models not properly loaded - starting web interface for setup")
+                index = None
+            
             run_web_interface(index, args)
         else:
+            # For CLI interface, require models to be loaded
+            index = create_local_rag_system(args.config, force_check=True)
+            print("✅ LocalRAG system initialized successfully!")
             run_cli_interface(index)
         
     except KeyboardInterrupt:
